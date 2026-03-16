@@ -357,7 +357,7 @@ client.on(Events.MessageCreate, async (message) => {
 
   if (cmd === 'on') {
     if (!isSupport(message.member)) return;
-    const ping = await message.channel.send('@here تم فتح استقبال التذاكر الآن ✅');
+    const ping = await message.channel.send('@here');
     store.workStatus[message.channel.id] = { enabled: true, pingMessageId: ping.id };
     saveData();
     await message.reply('تم تفعيل استقبال التذاكر في هذه القناة.');
