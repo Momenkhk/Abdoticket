@@ -87,14 +87,14 @@ const commands = [
     .setDescription('Create main ticket panel with channels setup')
     .addStringOption((o) => o.setName('title').setDescription('Panel title').setRequired(true))
     .addStringOption((o) => o.setName('content').setDescription('Panel content').setRequired(true))
-    .addStringOption((o) => o.setName('image_url').setDescription('Optional image URL'))
-    .addChannelOption((o) => o.setName('channel').setDescription('Target panel channel').addChannelTypes(ChannelType.GuildText))
     .addStringOption((o) => o.setName('category_game').setDescription('Category ID for game tickets').setRequired(true))
     .addStringOption((o) => o.setName('category_other').setDescription('Category ID for other tickets').setRequired(true))
     .addStringOption((o) => o.setName('category_support').setDescription('Category ID for support tickets').setRequired(true))
     .addChannelOption((o) => o.setName('transcript_game').setDescription('Transcript channel for game').setRequired(true).addChannelTypes(ChannelType.GuildText))
     .addChannelOption((o) => o.setName('transcript_other').setDescription('Transcript channel for other').setRequired(true).addChannelTypes(ChannelType.GuildText))
-    .addChannelOption((o) => o.setName('transcript_support').setDescription('Transcript channel for support').setRequired(true).addChannelTypes(ChannelType.GuildText)),
+    .addChannelOption((o) => o.setName('transcript_support').setDescription('Transcript channel for support').setRequired(true).addChannelTypes(ChannelType.GuildText))
+    .addStringOption((o) => o.setName('image_url').setDescription('Optional image URL'))
+    .addChannelOption((o) => o.setName('channel').setDescription('Target panel channel').addChannelTypes(ChannelType.GuildText)),
   new SlashCommandBuilder()
     .setName('ticket')
     .setDescription('Create focused ticket panel for one type')
@@ -347,7 +347,15 @@ const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBit
 
 client.once(Events.ClientReady, async () => {
   console.log(`Logged in as ${client.user.tag}`);
-  await registerCommands();
+  try {
+    await registerCommands();
+  } catch (error) {
+    console.error('[register_commands_failed]', error);
+  }
+});
+
+client.on(Events.Error, (error) => {
+  console.error('[client_error]', error);
 });
 
 client.on(Events.MessageCreate, async (message) => {
@@ -357,7 +365,7 @@ client.on(Events.MessageCreate, async (message) => {
 
   if (cmd === 'on') {
     if (!isSupport(message.member)) return;
-    const ping = await message.channel.send('@here');
+    const ping = await message.channel.send('@here تم فتح استقبال التذاكر الآن ✅');
     store.workStatus[message.channel.id] = { enabled: true, pingMessageId: ping.id };
     saveData();
     await message.reply('تم تفعيل استقبال التذاكر في هذه القناة.');
