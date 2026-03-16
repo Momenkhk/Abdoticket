@@ -38,6 +38,14 @@ if (!TOKEN || !CLIENT_ID || !GUILD_ID) {
   process.exit(1);
 }
 
+function isSnowflake(value) {
+  return typeof value === 'string' && /^\d{16,20}$/.test(value);
+}
+
+const normalizedSupportRoleIds = Array.isArray(supportRoleIds)
+  ? supportRoleIds.filter(isSnowflake)
+  : [];
+
 const dataPath = path.join(__dirname, 'data.json');
 const defaultData = {
   workStatus: {},
@@ -113,6 +121,19 @@ async function registerCommands() {
 
 function isAdmin(member) {
   return member.permissions.has(PermissionsBitField.Flags.Administrator);
+}
+
+function isSupport(member) {
+  if (isAdmin(member)) return true;
+  return normalizedSupportRoleIds.some((roleId) => member.roles.cache.has(roleId));
+}
+
+async function replyNoPermission(source) {
+  if (source.deferred || source.replied) {
+    await source.followUp({ content: '❌ هذا الأمر مخصص للإدارة وفريق الدعم فقط.', ephemeral: true });
+    return;
+  }
+  await source.reply({ content: '❌ هذا الأمر مخصص للإدارة وفريق الدعم فقط.', ephemeral: true });
 }
 
 function typeLabel(type) {
@@ -229,6 +250,17 @@ async function closeTicket(channel, moderatorId) {
   return { ok: true, message: 'Ticket closed.' };
 }
 
+async function withSafety(label, action, source) {
+  try {
+    await action();
+  } catch (error) {
+    console.error(`[${label}]`, error);
+    if (source && typeof source.reply === 'function' && !source.replied && !source.deferred) {
+      await source.reply({ content: '❌ حصل خطأ غير متوقع، حاول مرة أخرى.', ephemeral: true }).catch(() => null);
+    }
+  }
+}
+
 async function createTicketChannel(interaction, type) {
   const status = store.workStatus[interaction.channelId];
   if (status && status.enabled === false) {
@@ -267,7 +299,7 @@ async function createTicketChannel(interaction, type) {
     },
   ];
 
-  for (const roleId of supportRoleIds) {
+  for (const roleId of normalizedSupportRoleIds) {
     overwrites.push({
       id: roleId,
       allow: [
@@ -319,10 +351,12 @@ client.once(Events.ClientReady, async () => {
 });
 
 client.on(Events.MessageCreate, async (message) => {
+  await withSafety('message_create', async () => {
   if (message.author.bot || !message.guild || !message.content.startsWith(PREFIX)) return;
   const cmd = message.content.slice(PREFIX.length).trim().toLowerCase();
 
   if (cmd === 'on') {
+    if (!isSupport(message.member)) return;
     const ping = await message.channel.send('@here تم فتح استقبال التذاكر الآن ✅');
     store.workStatus[message.channel.id] = { enabled: true, pingMessageId: ping.id };
     saveData();
@@ -331,6 +365,7 @@ client.on(Events.MessageCreate, async (message) => {
   }
 
   if (cmd === 'off') {
+    if (!isSupport(message.member)) return;
     const status = store.workStatus[message.channel.id];
     if (status?.pingMessageId) {
       const old = await message.channel.messages.fetch(status.pingMessageId).catch(() => null);
@@ -343,19 +378,21 @@ client.on(Events.MessageCreate, async (message) => {
   }
 
   if (cmd === 'close all') {
-    if (!isAdmin(message.member)) return;
+    if (!isSupport(message.member)) return;
     const openTickets = Object.values(store.openTickets).filter((t) => t.guildId === message.guild.id && !t.closed);
+    let closedCount = 0;
     for (const t of openTickets) {
       const ch = message.guild.channels.cache.get(t.channelId);
       if (!ch || ch.type !== ChannelType.GuildText) continue;
-      await closeTicket(ch, message.author.id).catch(() => null);
+      const res = await closeTicket(ch, message.author.id).catch(() => ({ ok: false }));
+      if (res.ok) closedCount += 1;
     }
-    await message.reply(`✅ تم قفل ${openTickets.length} تذكرة.`);
+    await message.reply(`✅ تم قفل ${closedCount} تذكرة.`);
     return;
   }
 
   if (cmd === 'transcript all') {
-    if (!isAdmin(message.member)) return;
+    if (!isSupport(message.member)) return;
     const closed = Object.values(store.openTickets).filter((t) => t.guildId === message.guild.id && t.closed);
     let sent = 0;
     for (const t of closed) {
@@ -369,14 +406,14 @@ client.on(Events.MessageCreate, async (message) => {
   }
 
   if (cmd === 'close') {
-    if (!isAdmin(message.member)) return;
+    if (!isSupport(message.member)) return;
     const res = await closeTicket(message.channel, message.author.id);
     await message.reply(res.ok ? '✅ تم قفل التذكرة.' : `❌ ${res.message}`);
     return;
   }
 
   if (cmd === 'transcript') {
-    if (!isAdmin(message.member)) return;
+    if (!isSupport(message.member)) return;
     const ticket = store.openTickets[message.channel.id];
     if (!ticket) {
       await message.reply('❌ هذا ليس روم تذكرة.');
@@ -385,13 +422,19 @@ client.on(Events.MessageCreate, async (message) => {
     const result = await sendTranscript(message.channel, ticket);
     await message.reply(result.ok ? `✅ ${result.message}` : `❌ ${result.message}`);
   }
+  });
 });
 
 client.on(Events.InteractionCreate, async (interaction) => {
+  await withSafety('interaction_create', async () => {
   if (!interaction.inGuild()) return;
 
   if (interaction.isChatInputCommand()) {
     if (interaction.commandName === 'set-panel') {
+      if (!isSupport(interaction.member)) {
+        await replyNoPermission(interaction);
+        return;
+      }
       const title = interaction.options.getString('title', true);
       const content = interaction.options.getString('content', true);
       const imageUrl = interaction.options.getString('image_url');
@@ -414,6 +457,10 @@ client.on(Events.InteractionCreate, async (interaction) => {
     }
 
     if (interaction.commandName === 'ticket') {
+      if (!isSupport(interaction.member)) {
+        await replyNoPermission(interaction);
+        return;
+      }
       const type = interaction.options.getString('type', true);
       const title = interaction.options.getString('title', true);
       const content = interaction.options.getString('content', true);
@@ -450,8 +497,8 @@ client.on(Events.InteractionCreate, async (interaction) => {
     if (interaction.customId === 'ticket_support_btn') return createTicketChannel(interaction, 'support');
 
     if (interaction.customId === 'ticket_delete_btn') {
-      if (!isAdmin(interaction.member)) {
-        await interaction.reply({ content: '❌ هذا الزر للمشرفين فقط.', ephemeral: true });
+      if (!isSupport(interaction.member)) {
+        await replyNoPermission(interaction);
         return;
       }
       await interaction.reply({ content: '🗑️ سيتم حذف التذكرة...', ephemeral: true });
@@ -460,8 +507,8 @@ client.on(Events.InteractionCreate, async (interaction) => {
     }
 
     if (interaction.customId === 'ticket_transcript_btn') {
-      if (!isAdmin(interaction.member)) {
-        await interaction.reply({ content: '❌ هذا الزر للمشرفين فقط.', ephemeral: true });
+      if (!isSupport(interaction.member)) {
+        await replyNoPermission(interaction);
         return;
       }
       const ticket = store.openTickets[interaction.channelId];
@@ -489,6 +536,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
     if (choice === 'ticket_other') return createTicketChannel(interaction, 'other');
     if (choice === 'ticket_support') return createTicketChannel(interaction, 'support');
   }
+  }, interaction);
 });
 
 client.login(TOKEN);
