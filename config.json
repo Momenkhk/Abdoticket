@@ -1,0 +1,10 @@
+{
+  "token": "PUT_BOT_TOKEN_HERE",
+  "clientId": "PUT_CLIENT_ID_HERE",
+  "guildId": "PUT_GUILD_ID_HERE",
+  "prefix": "$",
+  "staffMention": "<@873442377396797510>",
+  "supportRoleIds": [
+    "PUT_SUPPORT_ROLE_ID_HERE"
+  ]
+}
