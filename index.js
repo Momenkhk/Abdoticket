@@ -62,12 +62,16 @@ const defaultData = {
   },
   enabled: true,
   categories: {
-    support: { label: 'دعم فني', emoji: '🛟', categoryId: null, transcriptChannelId: null, priority: 'high' },
-    report: { label: 'شكوى / بلاغ', emoji: '📩', categoryId: null, transcriptChannelId: null, priority: 'urgent' },
-    purchase: { label: 'شراء / طلب', emoji: '🛒', categoryId: null, transcriptChannelId: null, priority: 'normal' },
-    help: { label: 'مساعدة عامة', emoji: '🧠', categoryId: null, transcriptChannelId: null, priority: 'normal' },
+    games: { label: 'شـحـن الـعـاب', emoji: '🎮', categoryId: null, transcriptChannelId: null, priority: 'normal' },
+    services: { label: 'خـدمـات اخـري', emoji: '🧾', categoryId: null, transcriptChannelId: null, priority: 'normal' },
+    complaint: { label: 'شكوه / استفسار', emoji: '📩', categoryId: null, transcriptChannelId: null, priority: 'high' },
   },
-  ticketCounters: { support: 0, report: 0, purchase: 0, help: 0 },
+  ticketCounters: { games: 0, services: 0, complaint: 0 },
+  openMessages: {
+    games: 'مرحبًا #user، تم استلام تذكرتك (شحن العاب).',
+    services: 'مرحبًا #user، تم استلام تذكرتك (خدمات اخري).',
+    complaint: 'مرحبًا #user، تم استلام تذكرتك (شكوه / استفسار).',
+  },
   tickets: {},
   blacklist: [],
   logsChannelId: null,
@@ -94,12 +98,16 @@ function loadData() {
   }
   try {
     const parsed = JSON.parse(fs.readFileSync(dataPath, 'utf8'));
+    const openMessages = { ...clone(defaultData.openMessages), ...(parsed.openMessages || {}) };
     return {
       ...clone(defaultData),
       ...parsed,
       panel: { ...clone(defaultData.panel), ...(parsed.panel || {}) },
-      categories: { ...clone(defaultData.categories), ...(parsed.categories || {}) },
-      ticketCounters: { ...clone(defaultData.ticketCounters), ...(parsed.ticketCounters || {}) },
+      categories: Object.fromEntries(
+        Object.keys(defaultData.categories).map((key) => [key, { ...clone(defaultData.categories[key]), ...(parsed.categories?.[key] || {}) }])
+      ),
+      ticketCounters: Object.fromEntries(Object.keys(defaultData.ticketCounters).map((key) => [key, parsed.ticketCounters?.[key] || 0])),
+      openMessages: Object.fromEntries(Object.keys(defaultData.openMessages).map((key) => [key, openMessages[key] || defaultData.openMessages[key]])),
       stats: { ...clone(defaultData.stats), ...(parsed.stats || {}) },
       tickets: parsed.tickets || {},
       blacklist: Array.isArray(parsed.blacklist) ? parsed.blacklist : [],
@@ -123,14 +131,12 @@ const commands = [
         .setName('setup')
         .setDescription('إعداد القنوات الأساسية')
         .addChannelOption((o) => o.setName('logs_channel').setDescription('قناة اللوجات').setRequired(true).addChannelTypes(ChannelType.GuildText))
-        .addStringOption((o) => o.setName('support_category').setDescription('ID كاتيجوري الدعم').setRequired(true))
-        .addStringOption((o) => o.setName('report_category').setDescription('ID كاتيجوري البلاغات').setRequired(true))
-        .addStringOption((o) => o.setName('purchase_category').setDescription('ID كاتيجوري الشراء').setRequired(true))
-        .addStringOption((o) => o.setName('help_category').setDescription('ID كاتيجوري المساعدة').setRequired(true))
-        .addChannelOption((o) => o.setName('support_transcript').setDescription('قناة Transcript الدعم').setRequired(true).addChannelTypes(ChannelType.GuildText))
-        .addChannelOption((o) => o.setName('report_transcript').setDescription('قناة Transcript البلاغات').setRequired(true).addChannelTypes(ChannelType.GuildText))
-        .addChannelOption((o) => o.setName('purchase_transcript').setDescription('قناة Transcript الشراء').setRequired(true).addChannelTypes(ChannelType.GuildText))
-        .addChannelOption((o) => o.setName('help_transcript').setDescription('قناة Transcript المساعدة').setRequired(true).addChannelTypes(ChannelType.GuildText))
+        .addStringOption((o) => o.setName('games_category').setDescription('ID كاتيجوري شـحـن الـعـاب').setRequired(true))
+        .addStringOption((o) => o.setName('services_category').setDescription('ID كاتيجوري خـدمـات اخـري').setRequired(true))
+        .addStringOption((o) => o.setName('complaint_category').setDescription('ID كاتيجوري شكوه / استفسار').setRequired(true))
+        .addChannelOption((o) => o.setName('games_transcript').setDescription('قناة Transcript شـحـن الـعـاب').setRequired(true).addChannelTypes(ChannelType.GuildText))
+        .addChannelOption((o) => o.setName('services_transcript').setDescription('قناة Transcript خـدمـات اخـري').setRequired(true).addChannelTypes(ChannelType.GuildText))
+        .addChannelOption((o) => o.setName('complaint_transcript').setDescription('قناة Transcript شكوه / استفسار').setRequired(true).addChannelTypes(ChannelType.GuildText))
     )
     .addSubcommand((s) =>
       s
@@ -172,6 +178,21 @@ const commands = [
         )
         .addUserOption((o) => o.setName('user').setDescription('المستخدم').setRequired(true))
     ),
+  new SlashCommandBuilder()
+    .setName('open')
+    .setDescription('تحديد رسالة فتح التذكرة لكل نوع')
+    .addStringOption((o) =>
+      o
+        .setName('type')
+        .setDescription('نوع التذكرة')
+        .setRequired(true)
+        .addChoices(
+          { name: 'شـحـن الـعـاب', value: 'games' },
+          { name: 'خـدمـات اخـري', value: 'services' },
+          { name: 'شكوه / استفسار', value: 'complaint' }
+        )
+    )
+    .addStringOption((o) => o.setName('message').setDescription('رسالة فتح التذكرة (#user = منشن العضو)').setRequired(true)),
 ].map((c) => c.toJSON());
 
 async function registerCommands() {
@@ -229,20 +250,25 @@ function buildTicketControlButtons(status = 'open') {
   if (status === 'closed') {
     return [
       new ActionRowBuilder().addComponents(
-        new ButtonBuilder().setCustomId('ticket_reopen_btn').setLabel('إعادة فتح').setStyle(ButtonStyle.Success),
-        new ButtonBuilder().setCustomId('ticket_delete_btn').setLabel('حذف').setStyle(ButtonStyle.Danger),
-        new ButtonBuilder().setCustomId('ticket_transcript_btn').setLabel('Transcript HTML').setStyle(ButtonStyle.Primary)
+        new ButtonBuilder().setCustomId('ticket_transcript_btn').setLabel('Transcript').setStyle(ButtonStyle.Primary).setEmoji('📄'),
+        new ButtonBuilder().setCustomId('ticket_reopen_btn').setLabel('Open').setStyle(ButtonStyle.Success).setEmoji('🔓'),
+        new ButtonBuilder().setCustomId('ticket_delete_btn').setLabel('Delete').setStyle(ButtonStyle.Danger).setEmoji('⛔')
       ),
     ];
   }
 
   return [
     new ActionRowBuilder().addComponents(
-      new ButtonBuilder().setCustomId('ticket_claim_btn').setLabel('Claim').setStyle(ButtonStyle.Primary),
-      new ButtonBuilder().setCustomId('ticket_close_btn').setLabel('Close').setStyle(ButtonStyle.Secondary),
-      new ButtonBuilder().setCustomId('ticket_transcript_btn').setLabel('Transcript HTML').setStyle(ButtonStyle.Success)
+      new ButtonBuilder().setCustomId('ticket_close_btn').setLabel('Close').setStyle(ButtonStyle.Secondary).setEmoji('🔒'),
+      new ButtonBuilder().setCustomId('ticket_claim_btn').setLabel('Claim').setStyle(ButtonStyle.Primary).setEmoji('📌'),
+      new ButtonBuilder().setCustomId('ticket_transcript_btn').setLabel('Transcript').setStyle(ButtonStyle.Success).setEmoji('📄')
     ),
   ];
+}
+
+function buildOpenMessage(type, userId) {
+  const msg = store.openMessages?.[type] || 'مرحبًا #user، تم فتح تذكرتك.';
+  return msg.replaceAll('#user', `<@${userId}>`);
 }
 
 async function sendLog(guild, content) {
@@ -425,7 +451,7 @@ async function openTicket(interaction, type) {
   const embed = new EmbedBuilder()
     .setColor(0x22c55e)
     .setTitle(`🎫 تذكرة #${n}`)
-    .setDescription(`مرحبًا ${interaction.user}\nتم استلام طلبك بنجاح وسيتم الرد عليك قريبًا.\n${staffMention}`)
+    .setDescription(`${buildOpenMessage(type, interaction.user.id)}\n${staffMention}`)
     .addFields(
       { name: 'القسم', value: cfg.label, inline: true },
       { name: 'الأولوية', value: cfg.priority || 'normal', inline: true },
@@ -460,14 +486,12 @@ async function handleTicketCommand(interaction) {
 
   if (sub === 'setup') {
     store.logsChannelId = interaction.options.getChannel('logs_channel', true).id;
-    store.categories.support.categoryId = interaction.options.getString('support_category', true);
-    store.categories.report.categoryId = interaction.options.getString('report_category', true);
-    store.categories.purchase.categoryId = interaction.options.getString('purchase_category', true);
-    store.categories.help.categoryId = interaction.options.getString('help_category', true);
-    store.categories.support.transcriptChannelId = interaction.options.getChannel('support_transcript', true).id;
-    store.categories.report.transcriptChannelId = interaction.options.getChannel('report_transcript', true).id;
-    store.categories.purchase.transcriptChannelId = interaction.options.getChannel('purchase_transcript', true).id;
-    store.categories.help.transcriptChannelId = interaction.options.getChannel('help_transcript', true).id;
+    store.categories.games.categoryId = interaction.options.getString('games_category', true);
+    store.categories.services.categoryId = interaction.options.getString('services_category', true);
+    store.categories.complaint.categoryId = interaction.options.getString('complaint_category', true);
+    store.categories.games.transcriptChannelId = interaction.options.getChannel('games_transcript', true).id;
+    store.categories.services.transcriptChannelId = interaction.options.getChannel('services_transcript', true).id;
+    store.categories.complaint.transcriptChannelId = interaction.options.getChannel('complaint_transcript', true).id;
     saveData();
     await interaction.reply({ content: '✅ تم حفظ إعدادات النظام.', ephemeral: true });
     return;
@@ -539,6 +563,19 @@ async function handleTicketCommand(interaction) {
     saveData();
     await interaction.reply({ content: `✅ تم إزالة ${user} من البلاك ليست.`, ephemeral: true });
   }
+}
+
+async function handleOpenCommand(interaction) {
+  if (!isStaff(interaction.member)) {
+    await interaction.reply({ content: '❌ هذا الأمر للإدارة/الدعم فقط.', ephemeral: true });
+    return;
+  }
+
+  const type = interaction.options.getString('type', true);
+  const message = interaction.options.getString('message', true);
+  store.openMessages[type] = message;
+  saveData();
+  await interaction.reply({ content: `✅ تم ضبط رسالة فتح تذاكر **${store.categories[type]?.label || type}**.`, ephemeral: true });
 }
 
 async function handleLegacyMessageCommands(message) {
@@ -633,7 +670,7 @@ function startDashboard() {
     const totalOpen = Object.values(store.tickets).filter((t) => t.status === 'open').length;
     const avg = store.stats.ratingsCount ? (store.stats.ratingsSum / store.stats.ratingsCount).toFixed(2) : '0';
 
-    res.send(`<!doctype html><html lang="ar"><head><meta charset="utf-8"><title>AbdoTicket Dashboard</title><style>body{font-family:Arial;background:#0f172a;color:#e2e8f0;padding:20px}.box{background:#1e293b;padding:12px;border-radius:10px;margin:8px 0}input,button,select,textarea{padding:8px;margin:4px;border-radius:8px;border:1px solid #334155;background:#0f172a;color:#fff}</style></head><body><h1>لوحة التحكم</h1><div class="box">Open: ${totalOpen} | Created: ${store.stats.created} | Closed: ${store.stats.closed} | Avg Rate: ${avg}</div><div class="box"><form method="post" action="/toggle?owner=${ownerId}&key=${ownerSecret}"><button name="enabled" value="${store.enabled ? '0' : '1'}">${store.enabled ? 'تعطيل النظام' : 'تفعيل النظام'}</button></form></div><div class="box"><h3>تعديل أولوية الأقسام</h3><form method="post" action="/priority?owner=${ownerId}&key=${ownerSecret}"><select name="type"><option value="support">support</option><option value="report">report</option><option value="purchase">purchase</option><option value="help">help</option></select><select name="priority"><option>low</option><option>normal</option><option>high</option><option>urgent</option></select><button>حفظ</button></form></div></body></html>`);
+    res.send(`<!doctype html><html lang="ar"><head><meta charset="utf-8"><title>AbdoTicket Dashboard</title><style>body{font-family:Arial;background:#0f172a;color:#e2e8f0;padding:20px}.box{background:#1e293b;padding:12px;border-radius:10px;margin:8px 0}input,button,select,textarea{padding:8px;margin:4px;border-radius:8px;border:1px solid #334155;background:#0f172a;color:#fff}</style></head><body><h1>لوحة التحكم</h1><div class="box">Open: ${totalOpen} | Created: ${store.stats.created} | Closed: ${store.stats.closed} | Avg Rate: ${avg}</div><div class="box"><form method="post" action="/toggle?owner=${ownerId}&key=${ownerSecret}"><button name="enabled" value="${store.enabled ? '0' : '1'}">${store.enabled ? 'تعطيل النظام' : 'تفعيل النظام'}</button></form></div><div class="box"><h3>تعديل أولوية الأقسام</h3><form method="post" action="/priority?owner=${ownerId}&key=${ownerSecret}"><select name="type"><option value="games">games</option><option value="services">services</option><option value="complaint">complaint</option></select><select name="priority"><option>low</option><option>normal</option><option>high</option><option>urgent</option></select><button>حفظ</button></form></div></body></html>`);
   });
 
   app.post('/toggle', (req, res) => {
@@ -660,6 +697,7 @@ const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBit
 
 client.once(Events.ClientReady, async () => {
   console.log(`Logged in as ${client.user.tag}`);
+  client.user.setPresence({ activities: [{ name: 'Ticket System' }], status: 'dnd' });
   try {
     await registerCommands();
     console.log('Slash commands synced.');
@@ -688,6 +726,9 @@ client.on(Events.InteractionCreate, async (interaction) => {
     if (interaction.isChatInputCommand()) {
       if (interaction.commandName === 'ticket') {
         await handleTicketCommand(interaction);
+      }
+      if (interaction.commandName === 'open') {
+        await handleOpenCommand(interaction);
       }
       return;
     }
