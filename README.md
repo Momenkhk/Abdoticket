@@ -1,23 +1,36 @@
-# AbdoTicket Bot (Node.js)
+# AbdoTicket Pro (Node.js)
 
-بوت تذاكر ديسكورد متطور باللغة العربية.
+بوت تذاكر احترافي بالعربي، قريب من بوتات التذاكر الكبيرة، مع Dashboard ويب ونظام أمان وإدارة متكامل.
 
 ## المميزات
 
-- `/set-panel` لإنشاء البنل الرئيسي (عنوان + محتوى + صورة اختيارية) مع أزرار وسلكت منيو.
-- `/ticket` لإنشاء بنل مخصص لنوع تذكرة واحد.
-- أنواع التذاكر: شحن ألعاب / خدمات أخرى / شكوى-استفسار.
-- `Refresh` لمعرفة التذكرة المفتوحة للمستخدم.
-- `$on` و `$off` للتحكم في استقبال التذاكر داخل قناة البنل.
-- `$close` داخل روم التذكرة (للأدمن) لقفلها وإخفائها عن العميل.
-- بعد `$close` يرسل البوت رسالة فيها أن التذكرة أغلقت + زرين `Delete` و `Transcript`.
-- `$transcript` داخل التذكرة لإرسال transcript إلى الروم المحددة من الإعداد.
-- `$close all` لقفل كل التذاكر المفتوحة.
-- `$transcript all` لإرسال transcript لكل التذاكر المقفولة.
-- تسمية التذاكر بشكل منظم مثل: `ticket-game-0001` و `ticket-support-0001` مع عدّاد مستقل لكل نوع.
-- دعم إعطاء صلاحيات التذاكر تلقائيًا لرتب فريق الدعم عبر `supportRoleIds`.
-- أوامر الإدارة والسلاش أصبحت متاحة للأدمن أو رتب الدعم الموجودة في `supportRoleIds`.
-- تحسينات استقرار: معالجة أخطاء داخلية بدون توقف البوت عند أي استثناء.
+### Ticket System
+- بنل التذاكر **Select Menu فقط** (بدون أزرار فتح).
+- أقسام متعددة: `support`, `report`, `purchase`, `help`.
+- كل قسم يفتح روم خاص مع صلاحيات مخصصة للعضو وفريق الدعم.
+- منع التكرار لنفس النوع + حد أقصى للتذاكر المفتوحة لكل عضو.
+- حماية Spam عبر Cooldown بين فتح التذاكر.
+- Claim system لفريق الدعم.
+- Close / Delete / Reopen عبر أزرار داخل التذكرة.
+- Rename للتذكرة.
+- Auto rename بصيغة: `ticket-type-0001`.
+- Transcript بصيغة **HTML** ويتم إرساله تلقائياً لقنوات الترانسكربت.
+- Rating system بعد الإغلاق.
+- Auto close للتذاكر غير النشطة.
+
+### Management
+- Staff roles system + Admin صلاحيات.
+- Blacklist للمستخدمين.
+- Logs system كامل.
+- Ticket priority لكل قسم.
+- Ticket statistics (created/closed/deleted/claimed/rating avg).
+
+### Dashboard (Web)
+- Dashboard حديثة وسريعة عبر Express.
+- الدخول فقط بالـ `ownerId` + `ownerSecret`.
+- تفعيل/تعطيل النظام.
+- تعديل أولوية الأقسام.
+- عرض إحصائيات مباشرة.
 
 ## التثبيت
 
@@ -25,9 +38,9 @@
 npm install
 ```
 
-## الإعداد (بدون .env)
+## الإعداد
 
-عدّل ملف `config.json`:
+عدّل `config.json`:
 
 ```json
 {
@@ -35,15 +48,16 @@ npm install
   "clientId": "PUT_CLIENT_ID_HERE",
   "guildId": "PUT_GUILD_ID_HERE",
   "prefix": "$",
+  "ownerId": "PUT_OWNER_DISCORD_ID_HERE",
+  "ownerSecret": "CHANGE_THIS_SECRET",
+  "dashboardPort": 3000,
   "staffMention": "<@873442377396797510>",
-  "supportRoleIds": [
-    "PUT_SUPPORT_ROLE_ID_HERE"
-  ]
+  "supportRoleIds": ["PUT_SUPPORT_ROLE_ID_HERE"],
+  "maxOpenTicketsPerUser": 1,
+  "ticketCooldownSeconds": 20,
+  "inactiveCloseMinutes": 120
 }
 ```
-
-> `supportRoleIds` اختيارية لكن يفضل استخدامها ليظهر البوت بشكل احترافي مثل بوتات التذاكر الكبيرة.
-> لازم تكون IDs صحيحة (أرقام فقط) لأي رول دعم.
 
 ## التشغيل
 
@@ -53,43 +67,41 @@ npm start
 
 ## أوامر السلاش
 
-### `/set-panel`
-الباراميترات:
-- `title`
-- `content`
-- `category_game`
-- `category_other`
-- `category_support`
-- `transcript_game` (روم ترانسكربت شحن العاب)
-- `transcript_other` (روم ترانسكربت خدمات أخرى)
-- `transcript_support` (روم ترانسكربت شكوى)
+### `/ticket setup`
+تهيئة القنوات (categories + transcript channels + logs).
 
-اختياري:
-- `image_url`
-- `channel`
+### `/ticket panel`
+إرسال بنل التذاكر في قناة محددة (Select Menu).
 
-### `/ticket`
-- `type`: `game` / `other` / `support`
-- `title`
-- `content`
+### `/ticket add`
+إضافة عضو للتذكرة الحالية.
 
-اختياري:
-- `image_url`
-- `category_id` (تعديل كاتيجوري النوع)
-- `transcript_channel` (تعديل روم transcript لهذا النوع)
-- `channel`
+### `/ticket close`
+قفل التذكرة الحالية.
 
-## أوامر الكتابة
+### `/ticket delete`
+حذف التذكرة الحالية.
 
-- `$on`
-- `$off`
-- `$close`
-- `$transcript`
-- `$close all`
-- `$transcript all`
+### `/ticket rename`
+تغيير اسم التذكرة.
 
-## ملاحظات
+### `/ticket blacklist`
+إضافة/حذف مستخدم من القائمة السوداء.
 
-- يتم حفظ الحالة محليًا في `data.json`.
-- transcript يتم إرساله كملف `.txt`.
-- يتم حفظ عدّادات التذاكر لكل نوع داخل `data.json` (لا تتصفر إلا إذا حذفت الملف).
+## أوامر Prefix المدعومة
+- `$on` / `$off`
+- `$ticket remove @user`
+- `$ticket close`
+- `$ticket delete`
+- `$ticket rename new-name`
+- `$ticket blacklist add @user`
+- `$ticket blacklist remove @user`
+
+## رابط Dashboard
+
+بعد التشغيل:
+
+`http://SERVER_IP:3000/?owner=OWNER_ID&key=OWNER_SECRET`
+
+## التخزين
+- كل البيانات محفوظة بصيغة JSON داخل `data.json`.
