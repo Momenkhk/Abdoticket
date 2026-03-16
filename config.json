@@ -1,0 +1,16 @@
+{
+  "token": "PUT_BOT_TOKEN_HERE",
+  "clientId": "PUT_CLIENT_ID_HERE",
+  "guildId": "PUT_GUILD_ID_HERE",
+  "prefix": "$",
+  "ownerId": "PUT_OWNER_DISCORD_ID_HERE",
+  "ownerSecret": "CHANGE_THIS_SECRET",
+  "dashboardPort": 3000,
+  "staffMention": "<@873442377396797510>",
+  "supportRoleIds": [
+    "PUT_SUPPORT_ROLE_ID_HERE"
+  ],
+  "maxOpenTicketsPerUser": 1,
+  "ticketCooldownSeconds": 20,
+  "inactiveCloseMinutes": 120
+}

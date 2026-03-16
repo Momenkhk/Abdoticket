@@ -1,0 +1,15 @@
+{
+  "name": "abdo-ticket-bot",
+  "version": "2.0.0",
+  "description": "Professional Arabic Discord Ticket Bot + Dashboard",
+  "main": "index.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node index.js",
+    "check": "node --check index.js"
+  },
+  "dependencies": {
+    "discord.js": "^14.15.3",
+    "express": "^4.19.2"
+  }
+}
